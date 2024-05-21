@@ -12,30 +12,34 @@ import pyautogui
 class Keylogger:
     def __init__(self):
         self.input_buffer = ""
+        self.recording = False
 
     def callback(self, proxy, event_type, event, refcon):
         if event_type == kCGEventKeyDown:
-            key_code = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
             _, key_string = Quartz.CGEventKeyboardGetUnicodeString(event, 10, None, None)
 
-            if key_string == ".":
-                self.process_input(self.input_buffer)
+            if key_string == "!":
+                self.recording = True
                 self.input_buffer = ""
-            else:
+            elif key_string == "." and self.recording:
+                if self.input_buffer and self.input_buffer[0].isupper():
+                    self.process_input(self.input_buffer)  # Send the text to the LLM
+                self.input_buffer = ""
+                self.recording = False
+            elif self.recording:
                 self.input_buffer += key_string
 
         return event
 
-
-
     def process_input(self, input_text):
+        print("processing input")
         full_text = self.send_to_llm(input_text)
         print(full_text)
 
         # AppleScript to delete the typed text and type the response from the server
         script = f'''
         tell application "System Events"
-            repeat {len(input_text)} times
+            repeat {len(input_text) + 2} times
                 key code 51  -- Simulate pressing the delete key
             end repeat
             keystroke "{full_text}"  -- Type the response from the server
