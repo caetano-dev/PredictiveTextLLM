@@ -1,62 +1,49 @@
-import os
 from Quartz import (
-    CGEventTapCreate, kCGHeadInsertEventTap, kCGEventKeyDown, 
+    CGEventTapCreate, kCGEventKeyDown, 
     kCGEventTapOptionListenOnly, kCFRunLoopDefaultMode,
-    CGEventMaskBit, CFRunLoopAddSource, CFRunLoopRun, CFRunLoopSourceInvalidate
+    CGEventMaskBit, CFRunLoopAddSource, CFRunLoopRun
 )
 import Quartz
 import requests
 import json
-import pyautogui
+import pyperclip
 
 class Keylogger:
-    def __init__(self):
-        self.input_buffer = ""
-        self.recording = False
 
     def callback(self, proxy, event_type, event, refcon):
         if event_type == kCGEventKeyDown:
-            _, key_string = Quartz.CGEventKeyboardGetUnicodeString(event, 10, None, None)
+            key_code = Quartz.CGEventGetIntegerValueField(event, Quartz.kCGKeyboardEventKeycode)
+            flags = Quartz.CGEventGetFlags(event)
+            command_down = flags & Quartz.kCGEventFlagMaskCommand
 
-            if key_string == "!":
-                self.recording = True
-                self.input_buffer = ""
-            elif key_string == "." and self.recording:
-                if self.input_buffer and self.input_buffer[0].isupper():
-                    self.process_input(self.input_buffer)  # Send the text to the LLM
-                self.input_buffer = ""
-                self.recording = False
-            elif self.recording:
-                self.input_buffer += key_string
+            if key_code == 8 and command_down:  # Command+C was pressed
+                clipboard_content = pyperclip.paste()
+                if clipboard_content and "!" in clipboard_content and "." in clipboard_content:
+                    command_start = clipboard_content.index("!") + 1
+                    command_end = clipboard_content.index(".")
+                    command = clipboard_content[command_start:command_end].strip()
+                    text = clipboard_content.replace('!' + command + '.', '').strip()
+                    self.process_input(text, command)
 
         return event
 
-    def process_input(self, input_text):
+    def process_input(self, text, command):
         print("processing input")
-        full_text = self.send_to_llm(input_text)
+        full_text = self.send_to_llm(text, command)
         print(full_text)
 
-        # AppleScript to delete the typed text and type the response from the server
-        script = f'''
-        tell application "System Events"
-            repeat {len(input_text) + 2} times
-                key code 51  -- Simulate pressing the delete key
-            end repeat
-            keystroke "{full_text}"  -- Type the response from the server
-        end tell
-        '''
+        # Add the response to the clipboard
+        pyperclip.copy(full_text)
 
-        # Run the AppleScript
-        os.system(f"osascript -e '{script}'")
-
-    def send_to_llm(self, input_text):
+    def send_to_llm(self, text, command):
         response = requests.post(
             "http://localhost:11434/api/generate",
             json={
-                "prompt": input_text,
+                "prompt": f"{command}: {text}",
                 "model": "llama3",
                 "stream": False,
-                "system": "You are an advanced language model configured to expand text input where users type a few letters of each word in a phrase. If the input has x number of words, your response should have x number of words. Words that are smaller might have fewer words than longer ones. Under no circumstances should you reply, converse, comment, or provide any feedback to the user. Do not acknowledge receipt of the message or provide any explanation. Any additional output is strictly prohibited. Use common completions to attempt to understand what the user wants to type. \n ### Example #1: I wnt to the bkry ystdy to buy brd. \n I went to the bakery yesterday to buy bread. \n #2 Tht ws rlly gd! \n That was really good!\n"
+                "context": [0],
+                "system": "You are an advanced language model configured to assist with text input. When the user types a phrase, you should process the text between performing the requested action. You should not reply, converse, comment, or provide any feedback to the user unless explicitly requested in the command. Do not acknowledge receipt of the message or provide any explanation unless asked to do so. Any additional output is strictly prohibited. \n ### Example #1: Translate to French: I like apples \n J'aime des pommes \n #2 Rewrite using other words: Hello, people! \n Hey, guys!\n"
             }
         )
         response.raise_for_status()  # Raise an exception if the request failed
