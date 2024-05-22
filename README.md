@@ -1,6 +1,8 @@
-Local Predictive Text
+# Local Quick Text Editor
 
-This project uses local large language models to allow users to type faster by allowing them to omit longer words inside their sentences.
+MacOS only.
+
+This project uses local LLMs to allow users to edit texts quickly with commands. 
 
 ## Installation
 
@@ -19,16 +21,17 @@ You will also need to have a local language model running. I personally use Olla
 python __main__.py
 ```
 
-Start typing between an exclamation mark followed by an uppercase lett. To end the sentence, you can type period and wait for the LLM to complete the text for you.
+Type some text, add a command and select it from start to finish. The command needs to be in between `!` and `.`.
+The LLM will generate the text for you and add it to your clipboard automatically.
 
 Example:
 
 ```
-!Ths is an exprmntl pjct, pls be ptint.
+Today is a... !Complete the sentence.
 ```
 
 should return 
 
 ```
-This is an experimental project, please be patient.
+...beautiful day!
 ```
